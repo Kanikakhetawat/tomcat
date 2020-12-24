@@ -29,7 +29,7 @@
 
   <groupId>org.apache.tomcat</groupId>
   <artifactId>tomcat-jdbc</artifactId>
-  <version>8.0.15-SNAPSHOT</version>
+  <version>8.0.15-LOG-SNAPSHOT</version>
 
   <packaging>jar</packaging>
 
@@ -54,6 +54,22 @@
       <post>users@tomcat.apache.org</post>
     </mailingList>
   </mailingLists>
+
+  <distributionManagement>
+      <repository>
+        <id>clojars</id>
+        <name>Clojars repository</name>
+        <url>https://clojars.org/repo</url>
+      </repository>
+  </distributionManagement>
+
+  <repositories>
+    <repository>
+      <id>clojars</id>
+      <name>Clojars repository</name>
+      <url>https://clojars.org/repo</url>
+    </repository>
+  </repositories>
 
   <scm>
     <connection>scm:svn:https://svn.apache.org/repos/asf/tomcat/trunk/modules/jdbc-pool</connection>
@@ -108,20 +124,20 @@
       </plugin>
 
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-gpg-plugin</artifactId>
-        <version>1.2</version>
-        <executions>
-          <execution>
-            <id>sign-artifacts</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>sign</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
+      <!--<plugin>-->
+        <!--<groupId>org.apache.maven.plugins</groupId>-->
+        <!--<artifactId>maven-gpg-plugin</artifactId>-->
+        <!--<version>1.2</version>-->
+        <!--<executions>-->
+          <!--<execution>-->
+            <!--<id>sign-artifacts</id>-->
+            <!--<phase>verify</phase>-->
+            <!--<goals>-->
+              <!--<goal>sign</goal>-->
+            <!--</goals>-->
+          <!--</execution>-->
+        <!--</executions>-->
+      <!--</plugin>-->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-eclipse-plugin</artifactId>
