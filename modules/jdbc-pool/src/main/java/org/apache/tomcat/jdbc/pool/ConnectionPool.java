@@ -179,8 +179,8 @@ public class ConnectionPool {
             Future<PooledConnection> pcf = ((FairBlockingQueue<PooledConnection>)idle).pollAsync();
             return new ConnectionFuture(pcf);
         } else if (idle instanceof MultiLockFairBlockingQueue<?>) {
-                Future<PooledConnection> pcf = ((MultiLockFairBlockingQueue<PooledConnection>)idle).pollAsync();
-                return new ConnectionFuture(pcf);
+            Future<PooledConnection> pcf = ((MultiLockFairBlockingQueue<PooledConnection>)idle).pollAsync();
+            return new ConnectionFuture(pcf);
         } else {
             throw new SQLException("Connection pool is misconfigured, doesn't support async retrieval. Set the 'fair' property to 'true'");
         }
@@ -363,8 +363,8 @@ public class ConnectionPool {
         //cache the constructor
         if (proxyClassConstructor == null ) {
             Class<?> proxyClass = xa ?
-                Proxy.getProxyClass(ConnectionPool.class.getClassLoader(), new Class[] {java.sql.Connection.class,javax.sql.PooledConnection.class, javax.sql.XAConnection.class}) :
-                Proxy.getProxyClass(ConnectionPool.class.getClassLoader(), new Class[] {java.sql.Connection.class,javax.sql.PooledConnection.class});
+                    Proxy.getProxyClass(ConnectionPool.class.getClassLoader(), new Class[] {java.sql.Connection.class,javax.sql.PooledConnection.class, javax.sql.XAConnection.class}) :
+                    Proxy.getProxyClass(ConnectionPool.class.getClassLoader(), new Class[] {java.sql.Connection.class,javax.sql.PooledConnection.class});
             proxyClassConstructor = proxyClass.getConstructor(new Class[] { InvocationHandler.class });
         }
         return proxyClassConstructor;
@@ -610,6 +610,8 @@ public class ConnectionPool {
      * @param con PooledConnection
      */
     protected void release(PooledConnection con) {
+        log.info("Releasing connection: [con: "+con+"], [size: "+size.get()+"], [busy: "+busy.size()+"], [idle: "+idle.size()+"]");
+
         if (con == null)
             return;
         try {
@@ -644,6 +646,7 @@ public class ConnectionPool {
      * @throws SQLException Failed to get a connection
      */
     private PooledConnection borrowConnection(int wait, String username, String password) throws SQLException {
+        log.info("Borrowing connection: [size: "+size.get()+"], [busy: "+busy.size()+"], [idle: "+idle.size()+"]");
 
         if (isClosed()) {
             throw new SQLException("Connection pool closed.");
@@ -653,8 +656,8 @@ public class ConnectionPool {
         long now = System.currentTimeMillis();
         //see if there is one available immediately
         PooledConnection con = idle.poll();
-
         while (true) {
+            log.info("Borrowed connection: ["+con+"]");
             if (con!=null) {
                 //configure the connection and return it
                 PooledConnection result = borrowConnection(now, con, username, password);
@@ -672,6 +675,7 @@ public class ConnectionPool {
                     //if we got here, two threads passed through the first if
                     size.decrementAndGet();
                 } else {
+                    log.info("Creating connection: [size: "+size.get()+"], [busy: "+busy.size()+"], [idle: "+idle.size()+"]");
                     //create a connection, we're below the limit
                     return createConnection(now, con, username, password);
                 }
@@ -713,8 +717,8 @@ public class ConnectionPool {
                         jmxPool.notify(org.apache.tomcat.jdbc.pool.jmx.ConnectionPool.POOL_EMPTY, "Pool empty - timeout.");
                     }
                     throw new PoolExhaustedException("[" + Thread.currentThread().getName()+"] " +
-                        "Timeout: Pool empty. Unable to fetch a connection in " + (maxWait / 1000) +
-                        " seconds, none available[size:"+size.get() +"; busy:"+busy.size()+"; idle:"+idle.size()+"; lastwait:"+timetowait+"].");
+                            "Timeout: Pool empty. Unable to fetch a connection in " + (maxWait / 1000) +
+                            " seconds, none available[size:"+size.get() +"; busy:"+busy.size()+"; idle:"+idle.size()+"; lastwait:"+timetowait+"].");
                 } else {
                     //no timeout, lets try again
                     continue;
@@ -815,6 +819,7 @@ public class ConnectionPool {
                         //set the stack trace for this pool
                         con.setStackTrace(getThreadDump());
                     }
+                    log.info("Offering borrowed connection to busy queue: [size: "+size.get()+"], [busy: "+busy.size()+"], [idle: "+idle.size()+"]");
                     if (!busy.offer(con)) {
                         log.debug("Connection doesn't fit into busy array, connection will not be traceable.");
                     }
@@ -827,6 +832,7 @@ public class ConnectionPool {
             //in order to guarantee that the thread that just acquired
             //the connection shouldn't have to poll again.
             try {
+                log.info("Reconnecting the connection in the borrowed path: [size: "+size.get()+"], [busy: "+busy.size()+"], [idle: "+idle.size()+"]");
                 con.reconnect();
                 reconnectedCount.incrementAndGet();
                 int validationMode = isInitNewConnections() ?
@@ -950,6 +956,7 @@ public class ConnectionPool {
      * @param con PooledConnection to be returned to the pool
      */
     protected void returnConnection(PooledConnection con) {
+        log.info("Return connection called for " + con);
         if (isClosed()) {
             //if the connection pool is closed
             //close the connection instead of returning it
@@ -958,6 +965,8 @@ public class ConnectionPool {
         } //end if
 
         if (con != null) {
+            log.info("Returning connection with properties. Released: ["+con.isReleased()+"] MaxAgeExpiered: ["+con.isMaxAgeExpired()+"]" +
+                    "BusyQueueContains: ["+busy.contains(con)+"]");
             try {
                 returnedCount.incrementAndGet();
                 con.lock();
@@ -977,6 +986,7 @@ public class ConnectionPool {
                         con.clearWarnings();
                         con.setStackTrace(null);
                         con.setTimestamp(System.currentTimeMillis());
+                        log.info("Removed connection from busy queue: ["+con+"], idleQueueSize: ["+idle.size()+"]");
                         if (((idle.size()>=poolProperties.getMaxIdle()) && !poolProperties.isPoolSweeperEnabled()) || (!idle.offer(con))) {
                             if (log.isDebugEnabled()) {
                                 log.debug("Connection ["+con+"] will be closed and not returned to the pool, idle["+idle.size()+"]>=maxIdle["+poolProperties.getMaxIdle()+"] idle.offer failed.");
@@ -1020,6 +1030,7 @@ public class ConnectionPool {
      */
     public void checkAbandoned() {
         try {
+            log.info("Abandoned called. BusyQueueSize ["+busy.size()+"]");
             if (busy.isEmpty()) return;
             Iterator<PooledConnection> locked = busy.iterator();
             int sto = getPoolProperties().getSuspectTimeout();
@@ -1030,11 +1041,14 @@ public class ConnectionPool {
                     con.lock();
                     //the con has been returned to the pool or released
                     //ignore it
+                    log.info("Abandoned Path for connection: ["+con+"], IdleContainsConnection: ["+idle.contains(con)+"], " +
+                            "ConnectionReleased: ["+con.isReleased()+"]");
                     if (idle.contains(con) || con.isReleased())
                         continue;
                     long time = con.getTimestamp();
                     long now = System.currentTimeMillis();
                     if (shouldAbandon() && (now - time) > con.getAbandonTimeout()) {
+                        log.info("Abandoning connection: ["+con+"]");
                         busy.remove(con);
                         abandon(con);
                         setToNull = true;
